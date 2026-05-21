@@ -1,0 +1,32 @@
+{
+  "name": "swgit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:client": "esbuild src/client.ts --bundle --format=esm --target=es2022 --outfile=public/app.js",
+    "build": "pnpm build:client && tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/cli.ts",
+    "dev:web": "pnpm build:client && tsx src/server.ts",
+    "start:web": "node dist/server.js"
+  },
+  "dependencies": {
+    "@mysten/dapp-kit-core": "^1.3.2",
+    "@mysten/sui": "^2.17.0",
+    "@mysten/walrus": "^1.1.7",
+    "commander": "^14.0.0",
+    "dotenv": "^17.2.3",
+    "esbuild": "^0.28.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

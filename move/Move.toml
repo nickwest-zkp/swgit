@@ -1,0 +1,6 @@
+[package]
+name = "swgit"
+edition = "2024.beta"
+
+[addresses]
+swgit = "0x0"
