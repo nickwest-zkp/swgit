@@ -6,7 +6,7 @@ import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { Transaction } from "@mysten/sui/transactions";
 
 import type { AppConfig } from "./config.js";
-import type { CreatedRepo, RepoRefUpdate } from "./types.js";
+import type { AgentAuthorization, AgentProposalPayload, CreatedRepo, RepoRefUpdate } from "./types.js";
 
 export function createSuiClient(config: AppConfig): SuiGrpcClient {
   return new SuiGrpcClient({
@@ -115,6 +115,113 @@ export async function updateRepoRef(
   const result = await signer.signAndExecuteTransaction({
     client,
     transaction: tx
+  });
+
+  if (result.$kind === "FailedTransaction") {
+    throw new Error(result.FailedTransaction.status.error?.message ?? "Sui transaction failed");
+  }
+
+  await client.waitForTransaction({ result });
+
+  return result.Transaction.digest;
+}
+
+export async function authorizeAgent(
+  client: SuiGrpcClient,
+  signer: Signer,
+  config: AppConfig,
+  input: AgentAuthorization
+): Promise<string> {
+  if (!config.SUI_PACKAGE_ID) {
+    throw new Error("Missing SUI_PACKAGE_ID");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${config.SUI_PACKAGE_ID}::repository::authorize_agent`,
+    arguments: [tx.object(input.repoObjectId), tx.pure.address(input.agentAddress)]
+  });
+
+  return executeDigest(client, signer, tx);
+}
+
+export async function revokeAgent(
+  client: SuiGrpcClient,
+  signer: Signer,
+  config: AppConfig,
+  input: AgentAuthorization
+): Promise<string> {
+  if (!config.SUI_PACKAGE_ID) {
+    throw new Error("Missing SUI_PACKAGE_ID");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${config.SUI_PACKAGE_ID}::repository::revoke_agent`,
+    arguments: [tx.object(input.repoObjectId), tx.pure.address(input.agentAddress)]
+  });
+
+  return executeDigest(client, signer, tx);
+}
+
+export async function createAgentProposal(
+  client: SuiGrpcClient,
+  signer: Signer,
+  config: AppConfig,
+  input: { repoObjectId: string; proposalId: string; payload: AgentProposalPayload }
+): Promise<string> {
+  if (!config.SUI_PACKAGE_ID) {
+    throw new Error("Missing SUI_PACKAGE_ID");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${config.SUI_PACKAGE_ID}::repository::create_proposal`,
+    arguments: [
+      tx.object(input.repoObjectId),
+      tx.pure.string(input.proposalId),
+      tx.pure.vector("u8", Array.from(Buffer.from(JSON.stringify(input.payload), "utf8")))
+    ]
+  });
+
+  return executeDigest(client, signer, tx);
+}
+
+export async function acceptAgentProposal(
+  client: SuiGrpcClient,
+  signer: Signer,
+  config: AppConfig,
+  input: {
+    repoObjectId: string;
+    proposalId: string;
+    refName: string;
+    manifestBlobId: string;
+    payload: AgentProposalPayload;
+  }
+): Promise<string> {
+  if (!config.SUI_PACKAGE_ID) {
+    throw new Error("Missing SUI_PACKAGE_ID");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${config.SUI_PACKAGE_ID}::repository::accept_proposal`,
+    arguments: [
+      tx.object(input.repoObjectId),
+      tx.pure.string(input.proposalId),
+      tx.pure.string(input.refName),
+      tx.pure.vector("u8", Array.from(Buffer.from(input.manifestBlobId, "utf8"))),
+      tx.pure.vector("u8", Array.from(Buffer.from(JSON.stringify(input.payload), "utf8")))
+    ]
+  });
+
+  return executeDigest(client, signer, tx);
+}
+
+async function executeDigest(client: SuiGrpcClient, signer: Signer, transaction: Transaction): Promise<string> {
+  const result = await signer.signAndExecuteTransaction({
+    client,
+    transaction
   });
 
   if (result.$kind === "FailedTransaction") {

@@ -5,6 +5,7 @@ import multer from "multer";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { acceptProposalById, exportAgentProposal } from "./agent.js";
 import { loadConfig } from "./config.js";
 import { exportGitRefToWalrus, fetchGitRefFromRepo, pushGitRefToRepo } from "./git-transport.js";
 import { getRepoDetails, waitForRefVisibility } from "./repository.js";
@@ -190,6 +191,66 @@ app.post("/api/git/fetch", async (request, response) => {
   response.json(result);
 });
 
+app.post("/api/agent/proposal/export", async (request, response) => {
+  const config = loadConfig();
+  const repoPath = String(request.body?.repoPath ?? "").trim();
+  const sourceRef = String(request.body?.sourceRef ?? "").trim();
+  const targetRef = String(request.body?.targetRef ?? "").trim();
+  const agentAddress = String(request.body?.agentAddress ?? "").trim();
+  const agentName = String(request.body?.agentName ?? "codex").trim();
+  const taskId = String(request.body?.taskId ?? "").trim();
+  const summary = String(request.body?.summary ?? "").trim();
+
+  if (!repoPath || !sourceRef || !targetRef || !agentAddress || !taskId || !summary) {
+    response.status(400).json({
+      error: "repoPath, sourceRef, targetRef, agentAddress, taskId, and summary are required"
+    });
+    return;
+  }
+
+  const result = await exportAgentProposal(config, {
+    repoPath,
+    sourceRef,
+    targetRef,
+    agentAddress,
+    agentName,
+    taskId,
+    summary,
+    plan: asStringList(request.body?.plan),
+    tests: asStringList(request.body?.tests),
+    risks: asStringList(request.body?.risks),
+    prompt: asOptionalBodyString(request.body?.prompt)
+  });
+
+  response.json(result);
+});
+
+app.get("/api/agent/metadata/:blobId", async (request, response) => {
+  const config = loadConfig();
+  const bytes = await readBlob(config, request.params.blobId);
+  response.setHeader("content-type", "application/json; charset=utf-8");
+  response.send(Buffer.from(bytes));
+});
+
+app.post("/api/agent/proposal/accept", async (request, response) => {
+  const config = loadConfig();
+  const repoObjectId = String(request.body?.repoObjectId ?? config.SUI_REPO_OBJECT_ID ?? "").trim();
+  const proposalId = String(request.body?.proposalId ?? "").trim();
+  const refName = asOptionalBodyString(request.body?.refName);
+
+  if (!repoObjectId || !proposalId) {
+    response.status(400).json({ error: "repoObjectId and proposalId are required" });
+    return;
+  }
+
+  const result = await acceptProposalById(config, {
+    repoObjectId,
+    proposalId,
+    refName
+  });
+  response.json(result);
+});
+
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   const message = error instanceof Error ? error.message : String(error);
   response.status(500).json({ error: message });
@@ -214,6 +275,21 @@ function asOptionalString(value: unknown): string | undefined {
 
 function asOptionalBodyString(value: unknown): string | undefined {
   return asOptionalString(value);
+}
+
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n|\|/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 async function loadOperatorStatus(config: ReturnType<typeof loadConfig>) {

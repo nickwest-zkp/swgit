@@ -24,10 +24,14 @@ const elements = {
   writerMode: required("#writer-mode"),
   repoIdInput: required<HTMLInputElement>("#repo-id-input"),
   refsBody: required("#refs-body"),
+  proposalsBody: required("#proposals-body"),
   repoMeta: required("#repo-meta"),
   createRepoResult: required("#create-repo-result"),
   uploadResult: required("#upload-result"),
   refResult: required("#ref-result"),
+  agentAuthResult: required("#agent-auth-result"),
+  agentProposalResult: required("#agent-proposal-result"),
+  proposalDetail: required("#proposal-detail"),
   blobPreview: required("#blob-preview"),
   blobPreviewId: required<HTMLInputElement>("#blob-preview-id"),
   gitPushResult: required("#git-push-result"),
@@ -35,7 +39,9 @@ const elements = {
   connectButton: required<any>("#wallet-connect"),
   walletForms: [
     required<HTMLFormElement>("#create-repo-form"),
+    required<HTMLFormElement>("#agent-auth-form"),
     required<HTMLFormElement>("#ref-form"),
+    required<HTMLFormElement>("#agent-proposal-form"),
     required<HTMLFormElement>("#git-push-form")
   ],
   repoObjectInputs: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="repoObjectId"]'))
@@ -43,12 +49,16 @@ const elements = {
 
 required("#refresh-status").addEventListener("click", runAction(refreshStatus));
 required("#load-repo").addEventListener("click", runAction(loadRepo));
+required("#refresh-proposals").addEventListener("click", runAction(loadRepo, elements.proposalDetail));
 required("#load-blob").addEventListener("click", runAction(loadBlobPreview, elements.blobPreview));
 required("#create-repo-form").addEventListener("submit", runAction(handleCreateRepo, elements.createRepoResult));
 required("#upload-form").addEventListener("submit", runAction(handleUpload, elements.uploadResult));
+required("#agent-auth-form").addEventListener("submit", runAction(handleAgentAuthorize, elements.agentAuthResult));
 required("#ref-form").addEventListener("submit", runAction(handleRefUpdate, elements.refResult));
+required("#agent-proposal-form").addEventListener("submit", runAction(handleAgentProposal, elements.agentProposalResult));
 required("#git-push-form").addEventListener("submit", runAction(handleGitPush, elements.gitPushResult));
 required("#git-fetch-form").addEventListener("submit", runAction(handleGitFetch, elements.gitFetchResult));
+elements.proposalsBody.addEventListener("click", runAction(handleProposalAction, elements.proposalDetail));
 
 await bootstrap();
 
@@ -125,7 +135,7 @@ async function refreshConnectedWallet() {
   elements.wallet.textContent = shorten(connection.account.address);
   elements.suiBalance.textContent = suiBalance.balance.balance;
   elements.walBalance.textContent = walBalance.balance.balance;
-  elements.writerMode.textContent = `Writes are signed by ${shorten(connection.account.address)} on ${requireStatus().network}.`;
+  elements.writerMode.textContent = `Repo writes and agent proposals are signed by ${shorten(connection.account.address)} on ${requireStatus().network}.`;
 }
 
 async function loadRepo() {
@@ -139,6 +149,7 @@ async function loadRepo() {
   syncRepoObjectId(repo.objectId);
   renderRepoMeta(repo);
   renderRefs(repo.refs);
+  renderProposals(repo.proposals);
 }
 
 async function handleCreateRepo(event?: Event) {
@@ -180,6 +191,24 @@ async function handleUpload(event?: Event) {
   showFlash(`Stored blob ${result.blobId}`, "success");
 }
 
+async function handleAgentAuthorize(event?: Event) {
+  const formElement = requireFormEvent(event);
+  event?.preventDefault();
+  const form = new FormData(formElement);
+  const repoObjectId = String(form.get("repoObjectId") || state.currentRepoId || "").trim();
+  const agentAddress = String(form.get("agentAddress") ?? "").trim();
+  const tx = buildAuthorizeAgentTransaction(repoObjectId, agentAddress);
+  const result = await signAndExecute(tx);
+  const payload = {
+    digest: result.Transaction.digest,
+    repoObjectId,
+    agentAddress
+  };
+
+  elements.agentAuthResult.textContent = JSON.stringify(payload, null, 2);
+  showFlash(`Authorized agent ${shorten(agentAddress)}`, "success");
+}
+
 async function handleRefUpdate(event?: Event) {
   const formElement = requireFormEvent(event);
   event?.preventDefault();
@@ -204,6 +233,41 @@ async function handleRefUpdate(event?: Event) {
   renderRepoMeta(repo);
   renderRefs(repo.refs);
   showFlash(`Updated ${refName} -> ${blobId}`, "success");
+}
+
+async function handleAgentProposal(event?: Event) {
+  const formElement = requireFormEvent(event);
+  event?.preventDefault();
+  const form = new FormData(formElement);
+  const repoObjectId = String(form.get("repoObjectId") || state.currentRepoId || "").trim();
+  const account = requireConnectedAccount();
+  const exported = await requestJson<AgentProposalExportResult>("/api/agent/proposal/export", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      repoPath: form.get("repoPath"),
+      sourceRef: form.get("sourceRef"),
+      targetRef: form.get("targetRef"),
+      agentAddress: account.address,
+      agentName: form.get("agentName"),
+      taskId: form.get("taskId"),
+      summary: form.get("summary"),
+      plan: splitList(String(form.get("plan") ?? "")),
+      tests: splitList(String(form.get("tests") ?? ""))
+    })
+  });
+
+  const tx = buildCreateProposalTransaction(repoObjectId, exported.proposalId, exported.payload);
+  const result = await signAndExecute(tx);
+  const payload = {
+    repoObjectId,
+    digest: result.Transaction.digest,
+    ...exported
+  };
+
+  elements.agentProposalResult.textContent = JSON.stringify(payload, null, 2);
+  showFlash(`Created proposal ${exported.proposalId}`, "success");
+  await loadRepo();
 }
 
 async function handleGitPush(event?: Event) {
@@ -302,6 +366,32 @@ function renderRefs(refs: RepoDetails["refs"]) {
     .join("");
 }
 
+function renderProposals(proposals: RepoDetails["proposals"]) {
+  if (!proposals.length) {
+    elements.proposalsBody.innerHTML = `<tr><td colspan="5" class="empty">No agent proposals in this repository yet.</td></tr>`;
+    return;
+  }
+
+  elements.proposalsBody.innerHTML = proposals
+    .map(
+      (proposal) => `
+        <tr>
+          <td class="mono">${escapeHtml(proposal.proposalId)}</td>
+          <td class="mono">${escapeHtml(shorten(proposal.agentAddress) ?? "-")}</td>
+          <td>${escapeHtml(proposal.status)}</td>
+          <td class="mono">${escapeHtml(proposal.targetRef)}</td>
+          <td>
+            <button class="ghost inline-action" data-action="details" data-proposal-id="${escapeHtml(proposal.proposalId)}">Details</button>
+            <button class="inline-action" data-action="accept" data-proposal-id="${escapeHtml(proposal.proposalId)}" ${
+              proposal.status === "open" ? "" : "disabled"
+            }>Accept</button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
 async function signAndExecute(transaction: Transaction, include: Record<string, boolean> = {}) {
   const dappKit = requireDAppKit();
   const account = requireConnectedAccount();
@@ -371,6 +461,117 @@ function buildUpdateRefTransaction(repoObjectId: string, refName: string, blobId
     ]
   });
   return tx;
+}
+
+function buildAuthorizeAgentTransaction(repoObjectId: string, agentAddress: string) {
+  if (!repoObjectId) {
+    throw new Error("No repo object ID set.");
+  }
+
+  if (!agentAddress) {
+    throw new Error("No agent address set.");
+  }
+
+  if (!requireStatus().packageId) {
+    throw new Error("SUI package ID is not configured on the server.");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${requireStatus().packageId}::repository::authorize_agent`,
+    arguments: [tx.object(repoObjectId), tx.pure.address(agentAddress)]
+  });
+  return tx;
+}
+
+function buildCreateProposalTransaction(repoObjectId: string, proposalId: string, payload: AgentProposalPayload) {
+  if (!repoObjectId) {
+    throw new Error("No repo object ID set.");
+  }
+
+  if (!requireStatus().packageId) {
+    throw new Error("SUI package ID is not configured on the server.");
+  }
+
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${requireStatus().packageId}::repository::create_proposal`,
+    arguments: [
+      tx.object(repoObjectId),
+      tx.pure.string(proposalId),
+      tx.pure.vector("u8", Array.from(new TextEncoder().encode(JSON.stringify(payload))))
+    ]
+  });
+  return tx;
+}
+
+function buildAcceptProposalTransaction(repoObjectId: string, proposal: AgentProposalRecord) {
+  if (!repoObjectId) {
+    throw new Error("No repo object ID set.");
+  }
+
+  if (!requireStatus().packageId) {
+    throw new Error("SUI package ID is not configured on the server.");
+  }
+
+  const acceptedPayload: AgentProposalPayload = {
+    ...proposal,
+    status: "accepted",
+    updatedAt: new Date().toISOString()
+  };
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${requireStatus().packageId}::repository::accept_proposal`,
+    arguments: [
+      tx.object(repoObjectId),
+      tx.pure.string(proposal.proposalId),
+      tx.pure.string(proposal.targetRef),
+      tx.pure.vector("u8", Array.from(new TextEncoder().encode(proposal.manifestBlobId))),
+      tx.pure.vector("u8", Array.from(new TextEncoder().encode(JSON.stringify(acceptedPayload))))
+    ]
+  });
+  return tx;
+}
+
+async function handleProposalAction(event?: Event) {
+  const target = event?.target;
+  if (!(target instanceof HTMLButtonElement) || !target.dataset.action || !target.dataset.proposalId) {
+    return;
+  }
+
+  const repoObjectId = state.currentRepoId;
+  if (!repoObjectId) {
+    throw new Error("No repo object ID set.");
+  }
+
+  const repo = await requestJson<RepoDetails>(`/api/repo?repo=${encodeURIComponent(repoObjectId)}`);
+  const proposal = repo.proposals.find((entry) => entry.proposalId === target.dataset.proposalId);
+  if (!proposal) {
+    throw new Error(`Proposal not found: ${target.dataset.proposalId}`);
+  }
+
+  if (target.dataset.action === "details") {
+    const metadata = await requestJson<AgentProposalMetadata>(`/api/agent/metadata/${encodeURIComponent(proposal.metadataBlobId)}`);
+    elements.proposalDetail.textContent = JSON.stringify({ proposal, metadata }, null, 2);
+    return;
+  }
+
+  if (target.dataset.action === "accept") {
+    const tx = buildAcceptProposalTransaction(repoObjectId, proposal);
+    const result = await signAndExecute(tx);
+    elements.proposalDetail.textContent = JSON.stringify(
+      {
+        digest: result.Transaction.digest,
+        accepted: proposal.proposalId,
+        targetRef: proposal.targetRef,
+        manifestBlobId: proposal.manifestBlobId
+      },
+      null,
+      2
+    );
+    showFlash(`Accepted proposal ${proposal.proposalId}`, "success");
+    await loadRepo();
+  }
 }
 
 function extractCreatedRepoObjectId(
@@ -531,6 +732,13 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+function splitList(value: string): string[] {
+  return value
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 type AppStatus = {
   network: "mainnet" | "testnet" | "devnet" | "localnet";
   rpcUrl: string;
@@ -562,6 +770,7 @@ type RepoDetails = {
   storageEpochs: number;
   headsTableId: string;
   refs: Array<{ name: string; blobId: string }>;
+  proposals: AgentProposalRecord[];
 };
 
 type GitExportResult = {
@@ -581,4 +790,49 @@ type GitFetchResult = {
   localRef: string;
   targetRepoPath: string;
   importedObjects: number;
+};
+
+type AgentProposalPayload = {
+  kind: "swgit-agent-proposal";
+  version: 1;
+  proposalId: string;
+  status: "open" | "accepted" | "rejected";
+  agentAddress: string;
+  targetRef: string;
+  sourceRef: string;
+  rootOid: string;
+  manifestBlobId: string;
+  manifestObjectId?: string;
+  metadataBlobId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AgentProposalRecord = AgentProposalPayload & {
+  rawPayload: string;
+};
+
+type AgentProposalMetadata = {
+  kind: "swgit-agent-run";
+  version: 1;
+  agentName: string;
+  taskId: string;
+  promptHash?: string;
+  summary: string;
+  plan: string[];
+  tests: string[];
+  risks: string[];
+  createdAt: string;
+};
+
+type AgentProposalExportResult = {
+  proposalId: string;
+  payload: AgentProposalPayload;
+  metadata: AgentProposalMetadata;
+  metadataBlobId: string;
+  manifestBlobId: string;
+  manifestObjectId?: string;
+  rootOid: string;
+  objectCount: number;
+  repoPath: string;
 };

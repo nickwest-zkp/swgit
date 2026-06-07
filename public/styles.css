@@ -195,6 +195,10 @@ label span,
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.span-2 {
+  grid-column: span 2;
+}
+
 .kv dd,
 .repo-meta strong {
   margin: 0.35rem 0 0;
@@ -241,6 +245,12 @@ button.ghost {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
+}
+
+button.inline-action {
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.86rem;
 }
 
 button:disabled {
@@ -360,6 +370,10 @@ th {
   .repo-meta,
   .stack.dual {
     grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: auto;
   }
 
   .panel,

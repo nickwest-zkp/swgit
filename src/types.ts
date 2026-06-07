@@ -4,6 +4,44 @@ export type RepoRefUpdate = {
   blobId: string;
 };
 
+export type AgentAuthorization = {
+  repoObjectId: string;
+  agentAddress: string;
+};
+
+export type AgentProposalPayload = {
+  kind: "swgit-agent-proposal";
+  version: 1;
+  proposalId: string;
+  status: "open" | "accepted" | "rejected";
+  agentAddress: string;
+  targetRef: string;
+  sourceRef: string;
+  rootOid: string;
+  manifestBlobId: string;
+  manifestObjectId?: string;
+  metadataBlobId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentProposalRecord = AgentProposalPayload & {
+  rawPayload: string;
+};
+
+export type AgentProposalMetadata = {
+  kind: "swgit-agent-run";
+  version: 1;
+  agentName: string;
+  taskId: string;
+  promptHash?: string;
+  summary: string;
+  plan: string[];
+  tests: string[];
+  risks: string[];
+  createdAt: string;
+};
+
 export type CreatedRepo = {
   digest: string;
   repoObjectId: string;
@@ -22,10 +60,15 @@ export type RepoDetails = {
   storageEpochs: number;
   headsTableId: string;
   headsSize: string;
+  agentsTableId?: string;
+  agentsSize?: string;
+  proposalsTableId?: string;
+  proposalsSize?: string;
   refs: Array<{
     name: string;
     blobId: string;
   }>;
+  proposals: AgentProposalRecord[];
 };
 
 export type StoredBlob = {
@@ -61,4 +104,30 @@ export type GitFetchResult = {
   localRef: string;
   targetRepoPath: string;
   importedObjects: number;
+};
+
+export type AgentProposalExportResult = {
+  proposalId: string;
+  payload: AgentProposalPayload;
+  metadata: AgentProposalMetadata;
+  metadataBlobId: string;
+  manifestBlobId: string;
+  manifestObjectId?: string;
+  rootOid: string;
+  objectCount: number;
+  repoPath: string;
+};
+
+export type AgentProposalCreateResult = AgentProposalExportResult & {
+  repoObjectId: string;
+  digest: string;
+};
+
+export type AgentProposalAcceptResult = {
+  repoObjectId: string;
+  proposalId: string;
+  refName: string;
+  manifestBlobId: string;
+  digest: string;
+  repo: RepoDetails;
 };

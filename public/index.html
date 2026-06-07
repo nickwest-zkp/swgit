@@ -20,17 +20,17 @@
           <div class="brand-lockup">
             <img class="brand-logo" src="/swgit-logo.svg" alt="swgit logo" />
             <div>
-            <p class="eyebrow">Sui + Walrus</p>
-            <h1>swgit control room</h1>
+            <p class="eyebrow">Agent-native repo on Sui + Walrus</p>
+            <h1>swgit agent control</h1>
             </div>
           </div>
           <mysten-dapp-kit-connect-button id="wallet-connect">Connect Sui Wallet</mysten-dapp-kit-connect-button>
         </div>
         <p class="lede">
-          Repository creation and ref writes are signed in the browser by the connected wallet. Walrus blob
-          uploads remain on the local server so the browser never receives the uploader key.
+          swgit treats coding agents as first-class contributors. Agents can be authorized with a Sui address,
+          upload Git manifests and run metadata to Walrus, then propose changes that a human owner can accept.
         </p>
-        <p class="sublede" id="writer-mode">Connect a wallet to enable repo creation, ref updates, and Git push.</p>
+        <p class="sublede" id="writer-mode">Connect a wallet to create repos, authorize agents, submit proposals, and accept agent work.</p>
       </section>
 
       <div id="flash" class="flash" hidden></div>
@@ -145,6 +145,24 @@
 
         <article class="panel">
           <div class="panel-head">
+            <h2>Authorize Agent</h2>
+          </div>
+          <form id="agent-auth-form" class="stack">
+            <label>
+              <span>Repo Object ID</span>
+              <input name="repoObjectId" placeholder="0x..." />
+            </label>
+            <label>
+              <span>Agent Address</span>
+              <input name="agentAddress" placeholder="0x..." required />
+            </label>
+            <button type="submit">Authorize Agent</button>
+          </form>
+          <pre id="agent-auth-result" class="result"></pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
             <h2>Update Ref</h2>
           </div>
           <form id="ref-form" class="stack">
@@ -163,6 +181,78 @@
             <button type="submit">Write Ref Head</button>
           </form>
           <pre id="ref-result" class="result"></pre>
+        </article>
+
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Agent Proposal</h2>
+          </div>
+          <form id="agent-proposal-form" class="stack dual">
+            <label>
+              <span>Local Repo Path</span>
+              <input name="repoPath" placeholder="D:\\repos\\my-app" required />
+            </label>
+            <label>
+              <span>Sui Repo Object ID</span>
+              <input name="repoObjectId" placeholder="0x..." />
+            </label>
+            <label>
+              <span>Source Ref</span>
+              <input name="sourceRef" value="HEAD" required />
+            </label>
+            <label>
+              <span>Target Ref</span>
+              <input name="targetRef" value="refs/heads/main" required />
+            </label>
+            <label>
+              <span>Agent Name</span>
+              <input name="agentName" value="codex" required />
+            </label>
+            <label>
+              <span>Task ID</span>
+              <input name="taskId" placeholder="fix-build-001" required />
+            </label>
+            <label class="span-2">
+              <span>Summary</span>
+              <input name="summary" placeholder="Implemented feature and ran pnpm check" required />
+            </label>
+            <label>
+              <span>Plan</span>
+              <input name="plan" placeholder="inspect repo | implement | verify" />
+            </label>
+            <label>
+              <span>Tests</span>
+              <input name="tests" placeholder="pnpm check | pnpm build" />
+            </label>
+            <button type="submit">Submit Agent Proposal</button>
+          </form>
+          <pre id="agent-proposal-result" class="result"></pre>
+        </article>
+
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Agent Proposals</h2>
+            <button id="refresh-proposals" class="ghost">Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Proposal</th>
+                  <th>Agent</th>
+                  <th>Status</th>
+                  <th>Target</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="proposals-body">
+                <tr>
+                  <td colspan="5" class="empty">No proposals loaded.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <pre id="proposal-detail" class="result"></pre>
         </article>
 
         <article class="panel wide">
