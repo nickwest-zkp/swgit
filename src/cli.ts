@@ -5,6 +5,7 @@ import { Command } from "commander";
 import { createAgentCommand } from "./commands/agent.js";
 import { createBlobCommand } from "./commands/blob.js";
 import { createGitCommand } from "./commands/git.js";
+import { createPromptCommand } from "./commands/prompt.js";
 import { createRefCommand } from "./commands/ref.js";
 import { createRepoCommand } from "./commands/repo.js";
 
@@ -18,6 +19,7 @@ program
 program.addCommand(createAgentCommand());
 program.addCommand(createBlobCommand());
 program.addCommand(createGitCommand());
+program.addCommand(createPromptCommand());
 program.addCommand(createRefCommand());
 program.addCommand(createRepoCommand());
 

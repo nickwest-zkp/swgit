@@ -27,6 +27,7 @@ export async function exportAgentProposal(
     tests?: string[];
     risks?: string[];
     prompt?: string;
+    promptPackageBlobId?: string;
   }
 ): Promise<AgentProposalExportResult> {
   const exported = await exportGitRefToWalrus(config, {
@@ -42,6 +43,7 @@ export async function exportAgentProposal(
     agentName: input.agentName,
     taskId: input.taskId,
     promptHash: input.prompt ? sha256(input.prompt) : undefined,
+    promptPackageBlobId: input.promptPackageBlobId,
     summary: input.summary,
     plan: input.plan ?? [],
     tests: input.tests ?? [],
@@ -92,6 +94,7 @@ export async function pushAgentProposal(
     tests?: string[];
     risks?: string[];
     prompt?: string;
+    promptPackageBlobId?: string;
   }
 ): Promise<AgentProposalCreateResult> {
   const client = createSuiClient(config);

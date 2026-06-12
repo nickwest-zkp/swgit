@@ -58,6 +58,7 @@ export function createAgentCommand(): Command {
     .option("--tests <items>", "Pipe-separated tests run")
     .option("--risks <items>", "Pipe-separated risk notes")
     .option("--prompt <text>", "Original prompt text; only its hash is stored")
+    .option("--prompt-package <blobId>", "Walrus blob ID for the prompt package manifest used by this run")
     .option("--repo-object-id <id>", "Override the Sui repo object ID")
     .action(
       async (options: {
@@ -71,6 +72,7 @@ export function createAgentCommand(): Command {
         tests?: string;
         risks?: string;
         prompt?: string;
+        promptPackage?: string;
         repoObjectId?: string;
       }) => {
         const config = loadConfig();
@@ -90,7 +92,8 @@ export function createAgentCommand(): Command {
           plan: splitItems(options.plan),
           tests: splitItems(options.tests),
           risks: splitItems(options.risks),
-          prompt: options.prompt
+          prompt: options.prompt,
+          promptPackageBlobId: options.promptPackage
         });
 
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -35,6 +35,7 @@ export type AgentProposalMetadata = {
   agentName: string;
   taskId: string;
   promptHash?: string;
+  promptPackageBlobId?: string;
   summary: string;
   plan: string[];
   tests: string[];
@@ -130,4 +131,70 @@ export type AgentProposalAcceptResult = {
   manifestBlobId: string;
   digest: string;
   repo: RepoDetails;
+};
+
+export type PromptPackageSpec = {
+  kind: "swgit-prompt-package";
+  version: 1;
+  name: string;
+  description?: string;
+  modelHints?: string[];
+  variables?: Array<{
+    name: string;
+    required?: boolean;
+    description?: string;
+    default?: string;
+  }>;
+  entrypoints?: {
+    system?: string;
+    developer?: string;
+    task?: string;
+  };
+  requiredOutputs?: string[];
+  acceptanceChecks?: string[];
+};
+
+export type PromptManifestFile = {
+  path: string;
+  size: number;
+  sha256: string;
+  blobId: string;
+  objectId?: string;
+};
+
+export type PromptManifest = {
+  kind: "swgit-prompt-manifest";
+  version: 1;
+  package: PromptPackageSpec;
+  packagePath: string;
+  exportedAt: string;
+  fileCount: number;
+  files: PromptManifestFile[];
+};
+
+export type PromptPublishResult = {
+  repoObjectId: string;
+  refName: string;
+  manifestBlobId: string;
+  manifestObjectId?: string;
+  packageName: string;
+  fileCount: number;
+  digest?: string;
+};
+
+export type PromptFetchResult = {
+  repoObjectId: string;
+  refName: string;
+  manifestBlobId: string;
+  packageName: string;
+  outputPath: string;
+  fileCount: number;
+};
+
+export type PromptRenderResult = {
+  repoObjectId: string;
+  refName: string;
+  manifestBlobId: string;
+  packageName: string;
+  rendered: string;
 };
